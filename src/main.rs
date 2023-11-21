@@ -8,18 +8,19 @@ fn main() {
 }
 
 fn start_game() {
-    let mut game = Game::new();
-    let mut game_end = false;
+    let mut game = Game::default();
+    let mut is_game = true;
 
     println!("Type the column you want to insert a chip in (1-{})", game::COLS);
     println!("Type 'quit' to quit");
 
-    while !game_end {
+    while is_game {
         let game = game.run();
+
         if let Err(e) = game {
             eprintln!("err: {e}");
         } else {
-            game_end = game.unwrap();
+            is_game = game.unwrap();
         }
     }
 }

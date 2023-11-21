@@ -4,52 +4,46 @@ pub const COLS: usize = 7;
 const ROWS: usize = 6;
 const CONNECT: usize = 4;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Color {
     Blue,
     Red,
 }
 
 pub struct Game {
-    board: [[Option<Color>; ROWS]; COLS],
+    board: [Option<Color>; ROWS * COLS],
     player_turn: Color,
     last_turn: (usize, usize),
-}
-
-impl Default for Game {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl fmt::Display for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut display = String::new();
 
-        for column in 0..ROWS {
-            display += "\n";
-            for row in 0..COLS {
-                if self.board[row][column].is_none() {
-                    display += "_ ";
-                } else if self.board[row][column] == Some(Color::Blue) {
-                    display += "X ";
-                } else {
-                    display += "O ";
-                }
-            }
+        for i in 0..self.board.len() {
+            // transposing the board from column-major to row-major
+            if self.board[(i % COLS) * ROWS + i / COLS].is_none() { display += "_ "}
+            else if self.board[(i % COLS) * ROWS + i / COLS] == Some(Color::Blue) { display += "X " }
+            else if self.board[(i % COLS) * ROWS + i / COLS] == Some(Color::Red) { display += "O " }
+
+            if i % COLS == COLS - 1 { display += "\n"; }
         }
+
         write!(f, "{display}")
     }
 }
 
-impl Game {
-    pub fn new() -> Self {
-        Game {
-            board: Default::default(),
+impl Default for Game {
+    fn default() -> Self {
+        Self {
+            board: [None; COLS * ROWS],
             player_turn: Color::Blue,
             last_turn: (0, 0),
         }
     }
+}
+
+impl Game {
 
     pub fn run(&mut self) -> Result<bool, Box<dyn error::Error>> {
         println!("{:?}'s turn", self.player_turn);
@@ -57,58 +51,56 @@ impl Game {
         let input = input()?.trim().to_lowercase();
 
         if input == *"quit" {
-            return Ok(true);
+            return Ok(false);
         }
 
         let num: usize = input.parse()?;
-        self.next_turn(num)?;
+        self.insert(num)?;
         println!("{self}");
 
-        if self.did_win() {
+        if self.evaluate() == 1000 {
             println!("{:?} won the game!", self.player_turn);
-            return Ok(true);
+            return Ok(false);
         }
 
-        if self.player_turn == Color::Blue {
-            self.player_turn = Color::Red
-        } else {
-            self.player_turn = Color::Blue
-        }
+        if self.player_turn == Color::Blue { self.player_turn = Color::Red }
+        else { self.player_turn = Color::Blue }
 
-        Ok(false)
+        Ok(true)
     }
 
-    fn next_turn(&mut self, column: usize) -> Result<(), String> {
+    fn insert(&mut self, column: usize) -> Result<(), String> {
         if !(1..=COLS).contains(&column) {
             return Err(format!("Please select a column between 1 and {COLS}"));
         }
 
-        let free_spaces_in_row = self.board[column - 1]
+        let free_spaces = self.board[ROWS * (column - 1)..ROWS * column]
             .iter()
             .filter(|&n| n.is_none())
             .count();
 
-        if free_spaces_in_row == 0 {
+        if free_spaces == 0 {
             return Err(String::from("Column is already full"));
         }
 
-        self.last_turn = (column - 1, free_spaces_in_row - 1);
-        self.board[self.last_turn.0][self.last_turn.1] = Some(self.player_turn.clone());
+        self.last_turn = (column - 1, free_spaces - 1);
+        self.board[ROWS * self.last_turn.0 + self.last_turn.1] = Some(self.player_turn);
 
         Ok(())
     }
 
-    fn did_win(&self) -> bool {
+    fn evaluate(&self) -> usize {
         let board = &self.board;
         let (column, row) = self.last_turn;
+        let turn_color = Some(self.player_turn);
 
         // lateral
         let mut chips_lat = 1;
         let mut diff = 1;
 
-        while column as i32 - diff as i32 >= 0
+        while 1 + column - diff > 0
             && diff < CONNECT
-            && board[column - diff][row] == Some(self.player_turn.clone())
+            && board[ROWS * (column - diff) + row] == turn_color
         {
             chips_lat += 1;
             diff += 1;
@@ -117,14 +109,14 @@ impl Game {
         diff = 1;
         while column + diff < COLS
             && diff < CONNECT
-            && board[column + diff][row] == Some(self.player_turn.clone())
+            && board[ROWS * (column + diff) + row] == turn_color
         {
             chips_lat += 1;
             diff += 1;
         }
-        if chips_lat >= CONNECT {
-            return true;
-        }
+
+        if chips_lat >= CONNECT { return 1000; }
+
 
         // vertical
         let mut chips_vert = 1;
@@ -132,22 +124,22 @@ impl Game {
 
         while row + diff < ROWS
             && diff < CONNECT
-            && board[column][row + diff] == Some(self.player_turn.clone())
+            && board[ROWS * column + row + diff] == turn_color
         {
             chips_vert += 1;
             diff += 1;
         }
-        if chips_vert >= CONNECT {
-            return true;
-        }
+
+        if chips_vert >= CONNECT { return 1000; }
+
 
         // diagonal incline
         let mut chips_incline = 1;
         let mut diff = 1;
 
-        while column as i32 - diff as i32 >= 0
+        while 1 + column - diff > 0
             && row + diff < ROWS
-            && board[column - diff][row + diff] == Some(self.player_turn.clone())
+            && board[ROWS * (column - diff) + row + diff] == turn_color
             && diff < CONNECT
         {
             chips_incline += 1;
@@ -156,16 +148,16 @@ impl Game {
 
         diff = 1;
         while column + diff < COLS
-            && row as i32 - diff as i32 >= 0
-            && board[column + diff][row - diff] == Some(self.player_turn.clone())
+            && 1 + row - diff > 0
+            && board[ROWS * (column + diff) + row - diff] == turn_color
             && diff < CONNECT
         {
             chips_incline += 1;
             diff += 1;
         }
-        if chips_incline >= CONNECT {
-            return true;
-        }
+
+        if chips_incline >= CONNECT { return 1000; }
+
 
         // diagonal decline
         let mut chips_decline = 1;
@@ -173,7 +165,7 @@ impl Game {
 
         while column + diff < COLS
             && row + diff < ROWS
-            && board[column + diff][row + diff] == Some(self.player_turn.clone())
+            && board[ROWS * (column + diff) + row + diff] == turn_color
             && diff < CONNECT
         {
             chips_decline += 1;
@@ -181,19 +173,18 @@ impl Game {
         }
 
         diff = 1;
-        while column as i32 - diff as i32 >= 0
-            && row as i32 - diff as i32 >= 0
-            && board[column - diff][row - diff] == Some(self.player_turn.clone())
+        while 1 + column - diff > 0
+            && 1 + row - diff > 0
+            && board[ROWS * (column - diff) + row - diff] == turn_color
             && diff < CONNECT
         {
             chips_decline += 1;
             diff += 1;
         }
-        if chips_decline >= CONNECT {
-            return true;
-        }
 
-        false
+        if chips_decline >= CONNECT { return 1000; }
+
+        chips_lat.max(chips_vert).max(chips_incline).max(chips_decline)
     }
 }
 
