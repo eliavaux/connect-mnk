@@ -26,13 +26,13 @@ pub enum Color {
     Yellow
 }
 
-pub struct Grid<const W: usize, const H: usize>(Vec<Option<Color>>);
+pub struct Board<const W: usize, const H: usize>(Vec<Option<Color>>);
 
-impl<const W: usize, const H: usize> Default for Grid<W, H> {
+impl<const W: usize, const H: usize> Default for Board<W, H> {
     fn default() -> Self { Self(vec![None; W * H]) }
 }
 
-impl<const W: usize, const H: usize> Display for Grid<W, H> {
+impl<const W: usize, const H: usize> Display for Board<W, H> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut display= String::new();
 
@@ -50,22 +50,22 @@ impl<const W: usize, const H: usize> Display for Grid<W, H> {
     }
 }
 
-impl<const W: usize, const H: usize> Grid<W, H> {
+impl<const W: usize, const H: usize> Board<W, H> {
     fn contains(&self, pos: Pos) -> bool {
         pos.0 >= 0 && pos.1 >= 0 && pos.0 < W as i32 && pos.1 < H as i32
     }
 }
 
 #[derive(Default)]
-pub struct Board<const M: usize, const N: usize, const K: usize> {
-    pub grid: Grid<M, N>,
+pub struct Game<const M: usize, const N: usize, const K: usize> {
+    pub board: Board<M, N>,
     pub score: (Score, Score),
     pub last_move: Pos,
     pub turn: Color,
 }
 
-impl<const M: usize, const N: usize, const K: usize> Board<M, N, K> {
-    pub fn new() -> Self { Board::default() }
+impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
+    pub fn new() -> Self { Game::default() }
 
     pub fn run(&mut self, column: usize) -> Result<Option<Color>, &'static str>{
         self.insert(column)?;
@@ -86,14 +86,14 @@ impl<const M: usize, const N: usize, const K: usize> Board<M, N, K> {
     pub fn insert(&mut self, column: usize) -> Result<(), &'static str> {
        if column >= M { return Err("Column does not exist") }
 
-        let free_spaces = self.grid.0[N * column..N * (column + 1)]
+        let free_spaces = self.board.0[N * column..N * (column + 1)]
             .iter()
             .filter(| &n| n.is_none())
             .count();
 
         if free_spaces == 0 { return Err("Column is already full") }
 
-        self.grid.0[N * column + free_spaces - 1] = Some(self.turn);
+        self.board.0[N * column + free_spaces - 1] = Some(self.turn);
         self.last_move = (column as i32, free_spaces as i32 - 1);
 
         Ok(())
@@ -119,7 +119,7 @@ impl<const M: usize, const N: usize, const K: usize> Board<M, N, K> {
     }
 
     fn count_inner(&self, pos: Pos, dir: Dir) -> usize {
-        if self.grid.contains(pos) && self.grid.0[N * pos.0 as usize + pos.1 as usize] == Some(self.turn) {
+        if self.board.contains(pos) && self.board.0[N * pos.0 as usize + pos.1 as usize] == Some(self.turn) {
             1 + self.count_inner(next_pos(pos, dir), dir)
         } else { 0 }
     }
