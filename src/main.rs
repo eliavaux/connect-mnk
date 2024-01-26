@@ -1,26 +1,29 @@
+use std::io::stdin;
+use crate::game::Board;
+
 pub mod game;
 
-use crate::game::Game;
-
-
 fn main() {
-    start_game();
-}
+    let mut board: Board<10, 6, 5> = Board::new();
 
-fn start_game() {
-    let mut game = Game::default();
-    let mut is_game = true;
+    loop {
+        println!("{:?}'s turn:", board.turn);
 
-    println!("Type the column you want to insert a chip in (1-{})", game::COLS);
-    println!("Type 'quit' to quit");
+        let mut input = String::new();
+        stdin().read_line(&mut input).unwrap();
 
-    while is_game {
-        let game = game.run();
-
-        if let Err(e) = game {
-            eprintln!("err: {e}");
+        if let Ok(column) =  input.trim().parse() {
+            match board.run(column) {
+                Ok(Some(winner)) => {
+                    println!("{}", board.grid);
+                    println!("{winner:?} wins!");
+                    break;
+                },
+                Ok(None) => println!("{}", board.grid),
+                Err(error) => println!("{error}")
+            }
         } else {
-            is_game = game.unwrap();
+            println!("Please type a number");
         }
     }
 }

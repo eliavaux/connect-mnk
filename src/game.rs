@@ -1,196 +1,126 @@
-use std::{error, fmt, io};
+#[allow(unused)]
 
-pub const COLS: usize = 7;
-const ROWS: usize = 6;
-const CONNECT: usize = 4;
+use std::cmp::Ordering;
+use std::fmt::{self, Display, Formatter};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Color {
-    Blue,
+type Pos = (i32, i32);
+type Dir = (i32, i32);
+
+fn next_pos((x, y): Pos, (dx, dy): Dir) -> Pos { (x + dx, y + dy) }
+
+const DIRS: &[Dir] = &[
+    (1, 0), (1, 1),
+    (0, 1), (1, -1),
+];
+
+#[derive(Default)]
+pub struct Score {
+    max_row: usize,
+    num_max_rows: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Color {
+    #[default]
     Red,
+    Yellow
 }
 
-pub struct Game {
-    board: [Option<Color>; ROWS * COLS],
-    player_turn: Color,
-    last_turn: (usize, usize),
+pub struct Grid<const W: usize, const H: usize>(Vec<Option<Color>>);
+
+impl<const W: usize, const H: usize> Default for Grid<W, H> {
+    fn default() -> Self { Self(vec![None; W * H]) }
 }
 
-impl fmt::Display for Game {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut display = String::new();
+impl<const W: usize, const H: usize> Display for Grid<W, H> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut display= String::new();
 
-        for i in 0..self.board.len() {
-            // transposing the board from column-major to row-major
-            if self.board[(i % COLS) * ROWS + i / COLS].is_none() { display += "_ "}
-            else if self.board[(i % COLS) * ROWS + i / COLS] == Some(Color::Blue) { display += "X " }
-            else if self.board[(i % COLS) * ROWS + i / COLS] == Some(Color::Red) { display += "O " }
-
-            if i % COLS == COLS - 1 { display += "\n"; }
+        for row in 0..H {
+            for col in 0..W {
+                display += match self.0[H * col + row] {
+                    Some(Color::Red) => "X ",
+                    Some(Color::Yellow) => "O ",
+                    None => "_ ",
+                };
+            }
+            display += "\n";
         }
-
         write!(f, "{display}")
     }
 }
 
-impl Default for Game {
-    fn default() -> Self {
-        Self {
-            board: [None; COLS * ROWS],
-            player_turn: Color::Blue,
-            last_turn: (0, 0),
-        }
+impl<const W: usize, const H: usize> Grid<W, H> {
+    fn contains(&self, pos: Pos) -> bool {
+        pos.0 >= 0 && pos.1 >= 0 && pos.0 < W as i32 && pos.1 < H as i32
     }
 }
 
-impl Game {
+#[derive(Default)]
+pub struct Board<const M: usize, const N: usize, const K: usize> {
+    pub grid: Grid<M, N>,
+    pub score: (Score, Score),
+    pub last_move: Pos,
+    pub turn: Color,
+}
 
-    pub fn run(&mut self) -> Result<bool, Box<dyn error::Error>> {
-        println!("{:?}'s turn", self.player_turn);
+impl<const M: usize, const N: usize, const K: usize> Board<M, N, K> {
+    pub fn new() -> Self { Board::default() }
 
-        let input = input()?.trim().to_lowercase();
+    pub fn run(&mut self, column: usize) -> Result<Option<Color>, &'static str>{
+        self.insert(column)?;
 
-        if input == *"quit" {
-            return Ok(false);
+        if self.turn == Color::Red {
+            self.score.0 = self.score();
+            self.turn = Color::Yellow;
+            if self.score.0.max_row >= K { return Ok(Some(Color::Red)) }
+        } else {
+            self.score.1 = self.score();
+            self.turn = Color::Red;
+            if self.score.1.max_row >= K { return Ok(Some(Color::Yellow)) }
         }
 
-        let num: usize = input.parse()?;
-        self.insert(num)?;
-        println!("{self}");
-
-        if self.evaluate() == 1000 {
-            println!("{:?} won the game!", self.player_turn);
-            return Ok(false);
-        }
-
-        if self.player_turn == Color::Blue { self.player_turn = Color::Red }
-        else { self.player_turn = Color::Blue }
-
-        Ok(true)
+        Ok(None)
     }
 
-    fn insert(&mut self, column: usize) -> Result<(), String> {
-        if !(1..=COLS).contains(&column) {
-            return Err(format!("Please select a column between 1 and {COLS}"));
-        }
+    pub fn insert(&mut self, column: usize) -> Result<(), &'static str> {
+       if column >= M { return Err("Column does not exist") }
 
-        let free_spaces = self.board[ROWS * (column - 1)..ROWS * column]
+        let free_spaces = self.grid.0[N * column..N * (column + 1)]
             .iter()
-            .filter(|&n| n.is_none())
+            .filter(| &n| n.is_none())
             .count();
 
-        if free_spaces == 0 {
-            return Err(String::from("Column is already full"));
-        }
+        if free_spaces == 0 { return Err("Column is already full") }
 
-        self.last_turn = (column - 1, free_spaces - 1);
-        self.board[ROWS * self.last_turn.0 + self.last_turn.1] = Some(self.player_turn);
+        self.grid.0[N * column + free_spaces - 1] = Some(self.turn);
+        self.last_move = (column as i32, free_spaces as i32 - 1);
 
         Ok(())
     }
 
-    fn evaluate(&self) -> usize {
-        let board = &self.board;
-        let (column, row) = self.last_turn;
-        let turn_color = Some(self.player_turn);
+    pub fn score(&self) -> Score {
+        let max_row = DIRS.iter()
+            .map(| &dir| self.count(self.last_move, dir))
+            .max()
+            .unwrap();
 
-        // lateral
-        let mut chips_lat = 1;
-        let mut diff = 1;
+        let score = if self.turn == Color::Red { &self.score.0 } else { &self.score.1 };
 
-        while 1 + column - diff > 0
-            && diff < CONNECT
-            && board[ROWS * (column - diff) + row] == turn_color
-        {
-            chips_lat += 1;
-            diff += 1;
+        match max_row.cmp(&score.max_row) {
+            Ordering::Greater => Score { max_row, num_max_rows: 1},
+            Ordering::Equal => Score { max_row, num_max_rows: score.num_max_rows + 1},
+            Ordering::Less => Score { ..*score },
         }
-
-        diff = 1;
-        while column + diff < COLS
-            && diff < CONNECT
-            && board[ROWS * (column + diff) + row] == turn_color
-        {
-            chips_lat += 1;
-            diff += 1;
-        }
-
-        if chips_lat >= CONNECT { return 1000; }
-
-
-        // vertical
-        let mut chips_vert = 1;
-        let mut diff = 1;
-
-        while row + diff < ROWS
-            && diff < CONNECT
-            && board[ROWS * column + row + diff] == turn_color
-        {
-            chips_vert += 1;
-            diff += 1;
-        }
-
-        if chips_vert >= CONNECT { return 1000; }
-
-
-        // diagonal incline
-        let mut chips_incline = 1;
-        let mut diff = 1;
-
-        while 1 + column - diff > 0
-            && row + diff < ROWS
-            && board[ROWS * (column - diff) + row + diff] == turn_color
-            && diff < CONNECT
-        {
-            chips_incline += 1;
-            diff += 1;
-        }
-
-        diff = 1;
-        while column + diff < COLS
-            && 1 + row - diff > 0
-            && board[ROWS * (column + diff) + row - diff] == turn_color
-            && diff < CONNECT
-        {
-            chips_incline += 1;
-            diff += 1;
-        }
-
-        if chips_incline >= CONNECT { return 1000; }
-
-
-        // diagonal decline
-        let mut chips_decline = 1;
-        let mut diff = 1;
-
-        while column + diff < COLS
-            && row + diff < ROWS
-            && board[ROWS * (column + diff) + row + diff] == turn_color
-            && diff < CONNECT
-        {
-            chips_decline += 1;
-            diff += 1;
-        }
-
-        diff = 1;
-        while 1 + column - diff > 0
-            && 1 + row - diff > 0
-            && board[ROWS * (column - diff) + row - diff] == turn_color
-            && diff < CONNECT
-        {
-            chips_decline += 1;
-            diff += 1;
-        }
-
-        if chips_decline >= CONNECT { return 1000; }
-
-        chips_lat.max(chips_vert).max(chips_incline).max(chips_decline)
     }
-}
 
-fn input() -> Result<String, io::Error> {
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    fn count(&self, pos: Pos, dir: Dir) -> usize {
+        self.count_inner(pos, dir) + self.count_inner(pos, (-dir.0, -dir.1)) - 1
+    }
 
-    Ok(input)
+    fn count_inner(&self, pos: Pos, dir: Dir) -> usize {
+        if self.grid.contains(pos) && self.grid.0[N * pos.0 as usize + pos.1 as usize] == Some(self.turn) {
+            1 + self.count_inner(next_pos(pos, dir), dir)
+        } else { 0 }
+    }
 }
