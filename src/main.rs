@@ -25,5 +25,10 @@ fn main() {
         } else {
             println!("Please type a number");
         }
+
+
+        println!("Red: max row: {}, number of max rows: {}", game.score.0.max_row, game.score.0.num_max_rows);
+        println!("Yellow: max row: {}, number of max rows: {}",game.score.1.max_row, game.score.1.num_max_rows);
+        println!();
     }
 }

@@ -13,10 +13,10 @@ const DIRS: &[Dir] = &[
     (0, 1), (1, -1),
 ];
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Score {
-    max_row: usize,
-    num_max_rows: usize,
+    pub max_row: usize,
+    pub num_max_rows: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -100,17 +100,16 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     }
 
     pub fn score(&self) -> Score {
-        let max_row = DIRS.iter()
-            .map(| &dir| self.count(self.last_move, dir))
-            .max()
-            .unwrap();
+        let result: Vec<usize> = DIRS.iter().map(| &dir| self.count(self.last_move, dir)).collect();
+        let max_row = *result.iter().max().unwrap();
+        let num_max_rows = result.iter().filter(|&n| n == &max_row).count();
 
-        let score = if self.turn == Color::Red { &self.score.0 } else { &self.score.1 };
+        let score = if self.turn == Color::Red { self.score.0 } else { self.score.1 };
 
         match max_row.cmp(&score.max_row) {
-            Ordering::Greater => Score { max_row, num_max_rows: 1},
-            Ordering::Equal => Score { max_row, num_max_rows: score.num_max_rows + 1},
-            Ordering::Less => Score { ..*score },
+            Ordering::Greater => Score { max_row, num_max_rows },
+            Ordering::Equal => Score { max_row, num_max_rows: score.num_max_rows + num_max_rows },
+            Ordering::Less => score,
         }
     }
 
