@@ -3,21 +3,17 @@
 use std::cmp::Ordering;
 use std::fmt::{self, Display, Formatter};
 
-type Pos = (i32, i32);
+type Pos = (usize, usize);
+type IPos = (i32, i32);
 type Dir = (i32, i32);
 
-fn next_pos((x, y): Pos, (dx, dy): Dir) -> Pos { (x + dx, y + dy) }
-
 const DIRS: &[Dir] = &[
-    (1, 0), (1, 1),
-    (0, 1), (1, -1),
+    (1, 0), (1, 1), (0, 1), (-1, 1),
+    (-1, 0), (-1, -1), (0, -1), (1, -1)
 ];
 
-#[derive(Clone, Copy, Default)]
-pub struct Score {
-    pub max_row: usize,
-    pub num_max_rows: usize,
-}
+fn next_pos((x, y): IPos, (dx, dy): Dir) -> IPos { (x + dx, y + dy) }
+fn to_ipos(pos: &Pos) -> IPos { (pos.0 as i32, pos.1 as i32) }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Color {
@@ -26,19 +22,19 @@ pub enum Color {
     Yellow
 }
 
-pub struct Board<const W: usize, const H: usize>(Vec<Option<Color>>);
+pub struct Board<const HEIGHT: usize, const WIDTH: usize>(Vec<Option<Color>>);
 
-impl<const W: usize, const H: usize> Default for Board<W, H> {
-    fn default() -> Self { Self(vec![None; W * H]) }
+impl<const HEIGHT: usize, const WIDTH: usize> Default for Board<HEIGHT, WIDTH> {
+    fn default() -> Self { Self(vec![None; HEIGHT * WIDTH]) }
 }
 
-impl<const W: usize, const H: usize> Display for Board<W, H> {
+impl<const HEIGHT: usize, const WIDTH: usize> Display for Board<HEIGHT, WIDTH> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut display= String::new();
 
-        for row in 0..H {
-            for col in 0..W {
-                display += match self.0[H * col + row] {
+        for row in 0..WIDTH {
+            for col in 0..HEIGHT {
+                display += match self.0[WIDTH * col + row] {
                     Some(Color::Red) => "X ",
                     Some(Color::Yellow) => "O ",
                     None => "_ ",
@@ -50,75 +46,90 @@ impl<const W: usize, const H: usize> Display for Board<W, H> {
     }
 }
 
-impl<const W: usize, const H: usize> Board<W, H> {
-    fn contains(&self, pos: Pos) -> bool {
-        pos.0 >= 0 && pos.1 >= 0 && pos.0 < W as i32 && pos.1 < H as i32
+impl<const HEIGHT: usize, const WIDTH: usize> Board<HEIGHT, WIDTH> {
+    fn contains(pos: IPos) -> bool { pos.0 >= 0 && pos.1 >= 0 && pos.0 < HEIGHT as i32 && pos.1 < WIDTH as i32 }
+
+    fn free_spaces(&self, column: usize) -> usize {
+        self.0[WIDTH * column..WIDTH * (column + 1)]
+            .iter()
+            .filter(| &n| n.is_none())
+            .count()
     }
 }
+
+#[derive(Debug)]
+pub struct Score<const K: usize>([usize; K]);
+impl<const K: usize> Default for Score<K> { fn default() -> Self { Self([0; K]) } }
+
 
 #[derive(Default)]
 pub struct Game<const M: usize, const N: usize, const K: usize> {
     pub board: Board<M, N>,
-    pub score: (Score, Score),
-    pub last_move: Pos,
+    pub score: (Score<K>, Score<K>),
     pub turn: Color,
+    pub move_list: Vec<Pos>,
 }
 
 impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
-    pub fn new() -> Self { Game::default() }
+    pub fn new() -> Self { Self::default() }
 
-    pub fn run(&mut self, column: usize) -> Result<Option<Color>, &'static str>{
+    pub fn last_move(&self) -> &Pos { self.move_list.last().unwrap_or(&(0, 0)) }
+
+    // game doesn't end when the board is full
+    pub fn run(&mut self, column: usize) -> Result<Option<bool>, &'static str> {
         self.insert(column)?;
 
-        if self.turn == Color::Red {
-            self.score.0 = self.score();
-            self.turn = Color::Yellow;
-            if self.score.0.max_row >= K { return Ok(Some(Color::Red)) }
-        } else {
-            self.score.1 = self.score();
-            self.turn = Color::Red;
-            if self.score.1.max_row >= K { return Ok(Some(Color::Yellow)) }
-        }
+        self.turn = if self.turn == Color::Red { Color::Yellow } else { Color::Red };
 
-        Ok(None)
+        if self.score.0.0[K-1] != 0 || self.score.1.0[K-1] != 0 { Ok(Some(true)) }
+        else if self.move_list.len() == M * N { Ok(Some(false)) } else { Ok(None)}
+    }
+
+    pub fn undo(&mut self) {
+        if self.move_list.len() == 0 { return () }
+
+        let &(col, row) = self.last_move();
+
+        self.turn = if self.turn == Color::Red { Color::Yellow } else { Color::Red };
+
+        self.score(true);
+        self.move_list.pop();
+        self.board.0[N * col + row] = None;
     }
 
     pub fn insert(&mut self, column: usize) -> Result<(), &'static str> {
-       if column >= M { return Err("Column does not exist") }
+        if column >= M { return Err("Column does not exist") }
 
-        let free_spaces = self.board.0[N * column..N * (column + 1)]
-            .iter()
-            .filter(| &n| n.is_none())
-            .count();
-
+        let free_spaces = self.board.free_spaces(column);
         if free_spaces == 0 { return Err("Column is already full") }
 
         self.board.0[N * column + free_spaces - 1] = Some(self.turn);
-        self.last_move = (column as i32, free_spaces as i32 - 1);
+        self.move_list.push((column, free_spaces - 1));
 
+        self.score(false);
         Ok(())
     }
 
-    pub fn score(&self) -> Score {
-        let result: Vec<usize> = DIRS.iter().map(| &dir| self.count(self.last_move, dir)).collect();
-        let max_row = *result.iter().max().unwrap();
-        let num_max_rows = result.iter().filter(|&n| n == &max_row).count();
+    fn score(&mut self, undo: bool) {
+        let last_move = to_ipos(self.last_move());
 
-        let score = if self.turn == Color::Red { self.score.0 } else { self.score.1 };
+        let result = self.count(last_move);
+        let combined: Vec<usize> = (0..4).map(|x| (result[x] + result[x+4]).min(K-1)).collect();
+        let score = if self.turn == Color::Red { &mut self.score.0.0 } else { &mut self.score.1.0 };
 
-        match max_row.cmp(&score.max_row) {
-            Ordering::Greater => Score { max_row, num_max_rows },
-            Ordering::Equal => Score { max_row, num_max_rows: score.num_max_rows + num_max_rows },
-            Ordering::Less => score,
+        if undo {
+            for k in combined { score[k] -= 1 }
+            for k in result { if k != 0 { score[k-1] += 1 } }
+        } else {
+            for k in combined { score[k] += 1 }
+            for k in result { if k != 0 { score[k-1] -= 1 } }
         }
     }
 
-    fn count(&self, pos: Pos, dir: Dir) -> usize {
-        self.count_inner(pos, dir) + self.count_inner(pos, (-dir.0, -dir.1)) - 1
-    }
+    fn count(&self, pos: IPos) -> Vec<usize> { DIRS.iter().map(|&dir| self.count_inner(pos, dir) - 1).collect() }
 
-    fn count_inner(&self, pos: Pos, dir: Dir) -> usize {
-        if self.board.contains(pos) && self.board.0[N * pos.0 as usize + pos.1 as usize] == Some(self.turn) {
+    fn count_inner(&self, pos: IPos, dir: Dir) -> usize {
+        if Board::<M, N>::contains(pos) && self.board.0[N * pos.0 as usize + pos.1 as usize] == Some(self.turn) {
             1 + self.count_inner(next_pos(pos, dir), dir)
         } else { 0 }
     }

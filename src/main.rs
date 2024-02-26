@@ -4,6 +4,12 @@ use crate::game::Game;
 pub mod game;
 
 fn main() {
+    two_players();
+}
+
+// fn minimax() { todo!() }
+
+fn two_players() {
     let mut game: Game<7, 6, 4> = Game::new();
 
     loop {
@@ -12,23 +18,22 @@ fn main() {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
 
-        if let Ok(column) =  input.trim().parse() {
-            match game.run(column) {
-                Ok(Some(winner)) => {
-                    println!("{}", game.board);
-                    println!("{winner:?} wins!");
-                    break;
-                },
+        if input.trim() == "undo" { game.undo(); continue }
+
+        if let Ok(column) =  input.trim().parse::<usize>() {
+            match game.run(column.saturating_sub(1)) {
+                Ok(Some(true)) => { println!("{} \n{:?} wins!", game.board, /* wrong player */game.turn); break },
+                Ok(Some(false)) => { println!("{} \nDraw!", game.board); break },
                 Ok(None) => println!("{}", game.board),
                 Err(error) => println!("{error}")
             }
+
         } else {
             println!("Please type a number");
         }
 
-
-        println!("Red: max row: {}, number of max rows: {}", game.score.0.max_row, game.score.0.num_max_rows);
-        println!("Yellow: max row: {}, number of max rows: {}",game.score.1.max_row, game.score.1.num_max_rows);
+        println!("Red {:?}", game.score.0);
+        println!("Yellow {:?}", game.score.1);
         println!();
     }
 }
