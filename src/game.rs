@@ -1,6 +1,4 @@
 #[allow(unused)]
-
-use std::cmp::Ordering;
 use std::fmt::{self, Display, Formatter};
 
 type Pos = (i32, i32);
@@ -81,7 +79,7 @@ impl<const WIDTH: usize, const HEIGHT: usize> Board<WIDTH, HEIGHT> {
 }
 
 #[derive(Clone, Debug)]
-pub struct ScoreList<const K: usize>(Vec<[usize; K]>);
+pub struct ScoreList<const K: usize>(pub Vec<[usize; K]>);
 impl<const K: usize> Default for ScoreList<K> { fn default() -> Self { Self(vec![[0; K]]) } }
 
 
@@ -111,10 +109,10 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     // TODO!
     pub fn negamax(&mut self) -> usize {
         if self.is_draw() { return 0 }
-
+        let turn = self.turn;
         for column in 0..M {
             let _score = match self.run(column) {
-                Ok(Some(true)) => if self.turn == self.turn { usize::MAX } else { usize::MIN },
+                Ok(Some(true)) => if self.turn == turn { usize::MAX } else { usize::MIN },
                 Ok(Some(false)) => 0,
                 Ok(None) => 0,
                 _ => 0
@@ -127,8 +125,6 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     pub fn run(&mut self, column: usize) -> Result<Option<bool>, &'static str> {
         self.insert(column)?;
         self.turn = if self.turn == Color::Red { Color::Yellow } else { Color::Red };
-
-        println!("Red: {:?}, Yellow: {:?}", self.score_list.0.0.last().unwrap(), self.score_list.1.0.last().unwrap());
 
         if self.last_score().1[K-1] != 0 { Ok(Some(true)) }
         else if self.is_draw() { Ok(Some(false)) }
