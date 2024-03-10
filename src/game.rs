@@ -64,6 +64,7 @@ impl<const WIDTH: usize, const HEIGHT: usize> Board<WIDTH, HEIGHT> {
     }
 
     fn insert(&mut self, column: usize, color: Color) -> Result<usize, &'static str> {
+        if column >= WIDTH { return Err("Column does not exist") }
         let free_spaces = self.free_spaces(column);
         if free_spaces == 0 { return Err("Column is already full") }
         self.0[HEIGHT * column + free_spaces - 1] = Some(color);
@@ -71,6 +72,7 @@ impl<const WIDTH: usize, const HEIGHT: usize> Board<WIDTH, HEIGHT> {
     }
 
     fn extract(&mut self, column: usize) -> Result<usize, &'static str> {
+        if column >= WIDTH { return Err("Column does not exist") }
         let free_spaces = self.free_spaces(column);
         if free_spaces == HEIGHT { return Err("Column is empty") }
         self.0[HEIGHT * column + free_spaces] = None;
@@ -106,13 +108,13 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         }
     }
 
-    pub fn negamax(&self) -> usize {
-        let mut game = self.clone();
-        let starting_turn = game.turn;
+    // TODO!
+    pub fn negamax(&mut self) -> usize {
+        if self.is_draw() { return 0 }
 
         for column in 0..M {
-            let _score = match game.run(column) {
-                Ok(Some(true)) => if game.turn == starting_turn { usize::MAX } else { usize::MIN },
+            let _score = match self.run(column) {
+                Ok(Some(true)) => if self.turn == self.turn { usize::MAX } else { usize::MIN },
                 Ok(Some(false)) => 0,
                 Ok(None) => 0,
                 _ => 0
@@ -134,8 +136,6 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     }
 
     pub fn insert(&mut self, column: usize) -> Result<(), &'static str> {
-        if column >= M { return Err("Column does not exist") }
-
         let row = self.board.insert(column, self.turn)?;
         self.move_list.push(column);
         self.score((column as i32, row as i32 ));
