@@ -86,15 +86,17 @@ impl<const K: usize> Default for ScoreList<K> { fn default() -> Self { Self(vec!
 #[derive(Clone, Default)]
 pub struct Game<const M: usize, const N: usize, const K: usize> {
     pub board: Board<M, N>,
-    pub score_list: ( ScoreList<K>, ScoreList<K>),
     pub turn: Color,
     pub move_list: Vec<usize>,
+    pub score_list: ( ScoreList<K>, ScoreList<K>),
 }
 
 impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     pub fn new() -> Self { Self::default() }
 
     pub fn is_draw(&self) -> bool { self.move_list.len() >= M * N }
+
+    pub fn not_turn(&self) -> Color { if self.turn == Color::Red { Color::Yellow } else { Color::Red } }
 
     pub fn last_move(&self) -> usize { *self.move_list.last().unwrap_or(&0) }
 
@@ -105,6 +107,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
             (self.score_list.1.0.last_mut().unwrap(), self.score_list.0.0.last_mut().unwrap())
         }
     }
+
 
     // TODO!
     pub fn negamax(&mut self) -> usize {
@@ -124,7 +127,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
 
     pub fn run(&mut self, column: usize) -> Result<Option<bool>, &'static str> {
         self.insert(column)?;
-        self.turn = if self.turn == Color::Red { Color::Yellow } else { Color::Red };
+        self.turn = self.not_turn();
 
         if self.last_score().1[K-1] != 0 { Ok(Some(true)) }
         else if self.is_draw() { Ok(Some(false)) }
@@ -141,7 +144,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     pub fn undo(&mut self) {
         if self.move_list.is_empty() { return }
 
-        self.turn = if self.turn == Color::Red { Color::Yellow } else { Color::Red };
+        self.turn = self.not_turn();
         self.score_list.0.0.pop();
         self.score_list.1.0.pop();
         let column = self.move_list.pop().unwrap();

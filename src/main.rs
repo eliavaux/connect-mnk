@@ -27,7 +27,7 @@ fn two_players<const M: usize, const N: usize, const K: usize>(game: &mut Game<M
             println!("{}", game.board);
             println!("Red: {:?}, Yellow: {:?}", game.score_list.0.0.last().unwrap(), game.score_list.1.0.last().unwrap());
             match result {
-                Ok(Some(true)) => { println!("{:?} wins!", game.turn); break },
+                Ok(Some(true)) => { println!("{:?} wins!", game.not_turn()); break },
                 Ok(Some(false)) => { println!("Draw!"); break },
                 Ok(None) => (),
                 Err(error) => println!("{error}")
