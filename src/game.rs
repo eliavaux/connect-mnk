@@ -79,20 +79,23 @@ impl<const WIDTH: usize, const HEIGHT: usize> Board<WIDTH, HEIGHT> {
 }
 
 #[derive(Clone, Debug)]
-pub struct ScoreList<const K: usize>(pub Vec<[usize; K]>);
-impl<const K: usize> Default for ScoreList<K> { fn default() -> Self { Self(vec![[0; K]]) } }
-
+pub struct Score<const K: usize>([usize; K]);
 
 #[derive(Clone, Default)]
 pub struct Game<const M: usize, const N: usize, const K: usize> {
     pub board: Board<M, N>,
     pub turn: Color,
     pub move_list: Vec<usize>,
-    pub score_list: ( ScoreList<K>, ScoreList<K>),
+    pub score_list: Vec<(Score<K>, Score<K>)>,
 }
 
 impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self {
+            score_list: vec![(Score([0; K]), Score([0; K]))],
+            ..Self::default()
+        }
+    }
 
     pub fn is_draw(&self) -> bool { self.move_list.len() >= M * N }
 
@@ -100,26 +103,23 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
 
     pub fn last_move(&self) -> usize { *self.move_list.last().unwrap_or(&0) }
 
-    pub fn last_score(&mut self) -> (&mut [usize; K], &mut [usize; K]) {
-        if self.turn == Color::Red {
-            (self.score_list.0.0.last_mut().unwrap(), self.score_list.1.0.last_mut().unwrap())
-        } else {
-            (self.score_list.1.0.last_mut().unwrap(), self.score_list.0.0.last_mut().unwrap())
-        }
-    }
+    pub fn last_score(&mut self) -> (Score<K>, Score<K>) { self.score_list.last().unwrap().clone() }
 
-
-    // TODO!
-    pub fn negamax(&mut self) -> usize {
+    pub fn minimax(&mut self, depth: usize) -> usize {
         if self.is_draw() { return 0 }
-        let turn = self.turn;
+        if depth == 0 { return 0 }
+
+        let score = 0;
+
         for column in 0..M {
-            let _score = match self.run(column) {
-                Ok(Some(true)) => if self.turn == turn { usize::MAX } else { usize::MIN },
-                Ok(Some(false)) => 0,
-                Ok(None) => 0,
-                _ => 0
-            };
+            if let Ok(result) = self.run(column) {
+                if let Some(_) = result {
+
+                }
+                println!("{}", self.board);
+                self.minimax(depth - 1);
+            }
+            self.undo();
         }
 
         0
@@ -129,7 +129,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         self.insert(column)?;
         self.turn = self.not_turn();
 
-        if self.last_score().1[K-1] != 0 { Ok(Some(true)) }
+        if self.last_score().0.0[K-1] != 0 || self.last_score().1.0[K-1] != 0 { Ok(Some(true)) }
         else if self.is_draw() { Ok(Some(false)) }
         else { Ok(None) }
     }
@@ -137,7 +137,8 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     pub fn insert(&mut self, column: usize) -> Result<(), &'static str> {
         let row = self.board.insert(column, self.turn)?;
         self.move_list.push(column);
-        self.score((column as i32, row as i32 ));
+        let score = self.score((column as i32, row as i32));
+        self.score_list.push(score);
         Ok(())
     }
 
@@ -145,13 +146,12 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         if self.move_list.is_empty() { return }
 
         self.turn = self.not_turn();
-        self.score_list.0.0.pop();
-        self.score_list.1.0.pop();
+        self.score_list.pop();
         let column = self.move_list.pop().unwrap();
         self.board.extract(column).unwrap();
     }
 
-    fn score(&mut self, last_move: Pos) {
+    fn score(&mut self, last_move: Pos) -> (Score<K>, Score<K>) {
         let mut colors= [None; 8];
         let mut lengths = [0; 8];
         let mut open = [false; 8];
@@ -171,31 +171,33 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         }
 
         let turn = self.turn;
-        self.score_list.0.0.push(*self.score_list.0.0.last().unwrap());
-        self.score_list.1.0.push(*self.score_list.1.0.last().unwrap());
-        let score = self.last_score();
+        let (mut score_red, mut score_yellow) = self.last_score();
+        let (score_turn, score_other) = if turn == Color::Red {
+            (&mut score_red, &mut score_yellow)
+        } else {
+            (&mut score_yellow, &mut score_red)
+        };
 
         for i in 0..8 {
             let j = (i+4)%8;
             match colors[i] {
-                None => if open[i] {score.0[0] += 1}
                 Some(color) if color == turn => {
-                    score.0[lengths[i]-1] -= 1 + open[i] as usize;
                     match colors[j] {
-                        None => {
-                            score.0[0] -= open[j] as usize;
-                            score.0[(lengths[i]).min(K-1)] += open[i] as usize + open[j] as usize;
-                        }
-                        Some(color) => if color == turn {
-                            if lengths[i] + lengths[j] >= K { score.0[K-1] += 1 } // returns two instead of one, doesn't matter because game is over
-                            else { score.0[lengths[i] + lengths[j]] += open[i] as usize };
-                        }
+                        Some(color) if color == turn => {
+                            if lengths[i] + lengths[j] >= K { score_turn.0[K-1] += 1 } // returns two instead of one, doesn't matter because game is over
+                            else { score_turn.0[lengths[i] + lengths[j]] += open[i] as usize };
+                        },
+                        Some(_) => score_turn.0[lengths[i]] += open[i] as usize,
+                        None => score_turn.0[lengths[i]] += open[i] as usize + open[j] as usize
                     }
+                    score_turn.0[lengths[i]-1] -= 1 + open[i] as usize;
                 },
-                Some(_) => score.1[lengths[i]-1] -= 1,
+                Some(_) => score_other.0[lengths[i]-1] -= 1,
+                None => if colors[j] != Some(turn) { score_turn.0[0] += open[i] as usize }
             }
         }
 
+        (score_red, score_yellow)
         // if open none and other side not turn color, +1T
         // count up
         //  if turn color and other side open none, +l+1T for each open side   *

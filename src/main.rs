@@ -6,11 +6,12 @@ pub mod game;
 fn main() {
     let mut game: Game<7, 6, 4> = Game::new();
 
+    // one_player(&mut game);
     two_players(&mut game);
 }
 
-fn _one_player<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
-    game.negamax();
+fn one_player<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
+    game.minimax(3);
 }
 
 fn two_players<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
@@ -25,7 +26,7 @@ fn two_players<const M: usize, const N: usize, const K: usize>(game: &mut Game<M
         if let Ok(column) =  input.trim().parse::<usize>() {
             let result = game.run(column.saturating_sub(1));
             println!("{}", game.board);
-            println!("Red: {:?}, Yellow: {:?}", game.score_list.0.0.last().unwrap(), game.score_list.1.0.last().unwrap());
+            println!("Score: {:?}", game.last_score());
             match result {
                 Ok(Some(true)) => { println!("{:?} wins!", game.not_turn()); break },
                 Ok(Some(false)) => { println!("Draw!"); break },
