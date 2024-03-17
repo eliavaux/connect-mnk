@@ -1,5 +1,6 @@
-#[allow(unused)]
+use std::cmp::Ordering;
 use std::fmt::{self, Display, Formatter};
+use std::ops::Sub;
 
 type Pos = (i32, i32);
 type Dir = (i32, i32);
@@ -78,10 +79,41 @@ impl<const WIDTH: usize, const HEIGHT: usize> Board<WIDTH, HEIGHT> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Score<const K: usize>([usize; K]);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Score<const K: usize>(pub [i32; K]);
 
-#[derive(Clone, Default)]
+impl<const K: usize> PartialOrd for Score<K> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<const K: usize> Ord for Score<K> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for i in (0..K).rev() {
+            match self.0[i].cmp(&other.0[i]) {
+                Ordering::Greater => return Ordering::Greater,
+                Ordering::Less => return Ordering::Less,
+                Ordering::Equal => ()
+            }
+        }
+        Ordering::Equal
+    }
+}
+
+impl<const K: usize> Sub for Score<K> {
+    type Output = Score<K>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Score(
+            self.0.iter().zip(rhs.0.iter())
+                .map(|(lhs, rhs)| lhs - rhs)
+                .collect::<Vec<i32>>().try_into().unwrap()
+        )
+    }
+}
+
+#[derive(Default)]
 pub struct Game<const M: usize, const N: usize, const K: usize> {
     pub board: Board<M, N>,
     pub turn: Color,
@@ -103,26 +135,47 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
 
     pub fn last_move(&self) -> usize { *self.move_list.last().unwrap_or(&0) }
 
-    pub fn last_score(&mut self) -> (Score<K>, Score<K>) { self.score_list.last().unwrap().clone() }
+    pub fn last_score(&self) -> (Score<K>, Score<K>) { self.score_list.last().unwrap().clone() }
 
-    pub fn minimax(&mut self, depth: usize) -> usize {
-        if self.is_draw() { return 0 }
-        if depth == 0 { return 0 }
+    pub fn eval(&self) -> Score<K> {
+        let (score_red, score_yellow) = self.last_score();
+        score_red - score_yellow
+    }
 
-        let score = 0;
+    pub fn minimax(&mut self, depth: usize, mut alpha: Score<K>, mut beta: Score<K>, order_list: [usize; M]) -> (Score<K>, Vec<usize>) {
+        if depth == 0 { return (self.eval(), self.move_list.clone()) }
 
-        for column in 0..M {
+        let mut max_eval = if self.turn == Color::Yellow { Score([1; K]) } else { Score([-1; K]) };
+        let mut best_moves = Vec::new();
+
+        for column in order_list {
             if let Ok(result) = self.run(column) {
-                if let Some(_) = result {
+                if result.is_none() {
+                    let (eval,  moves) = self.minimax(depth - 1, alpha.clone(), beta.clone(), order_list);
+                    if self.turn == Color::Yellow {
+                        if max_eval.cmp(&eval) == Ordering::Less {
+                            max_eval = eval;
+                            best_moves = moves;
+                        }
+                    } else {
+                        if max_eval.cmp(&eval) == Ordering::Greater {
+                            max_eval = eval;
+                            best_moves = moves;
+                        }
+                    }
 
+                    println!("{:?}", self.move_list);
+                    if self.turn == Color::Yellow { alpha = alpha.max(max_eval.clone()) }
+                    else { beta = beta.min(max_eval.clone()) }
+                    if beta <= alpha { self.undo(); break }
+
+                    self.undo();
+                } else {
+                    self.undo(); return (self.eval(), best_moves)
                 }
-                println!("{}", self.board);
-                self.minimax(depth - 1);
             }
-            self.undo();
         }
-
-        0
+        (max_eval, best_moves)
     }
 
     pub fn run(&mut self, column: usize) -> Result<Option<bool>, &'static str> {
@@ -139,6 +192,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         self.move_list.push(column);
         let score = self.score((column as i32, row as i32));
         self.score_list.push(score);
+
         Ok(())
     }
 
@@ -185,15 +239,15 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
                     match colors[j] {
                         Some(color) if color == turn => {
                             if lengths[i] + lengths[j] >= K { score_turn.0[K-1] += 1 } // returns two instead of one, doesn't matter because game is over
-                            else { score_turn.0[lengths[i] + lengths[j]] += open[i] as usize };
+                            else { score_turn.0[lengths[i] + lengths[j]] += open[i] as i32 };
                         },
-                        Some(_) => score_turn.0[lengths[i]] += open[i] as usize,
-                        None => score_turn.0[lengths[i]] += open[i] as usize + open[j] as usize
+                        Some(_) => score_turn.0[lengths[i]] += open[i] as i32,
+                        None => score_turn.0[lengths[i]] += open[i] as i32 + open[j] as i32
                     }
-                    score_turn.0[lengths[i]-1] -= 1 + open[i] as usize;
+                    score_turn.0[lengths[i]-1] -= 1 + open[i] as i32;
                 },
                 Some(_) => score_other.0[lengths[i]-1] -= 1,
-                None => if colors[j] != Some(turn) { score_turn.0[0] += open[i] as usize }
+                None => if colors[j] != Some(turn) { score_turn.0[0] += open[i] as i32 }
             }
         }
 

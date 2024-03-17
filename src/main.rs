@@ -1,20 +1,34 @@
 use std::io::stdin;
-use crate::game::Game;
+use crate::game::{Game, Score};
 
 pub mod game;
 
 fn main() {
     let mut game: Game<7, 6, 4> = Game::new();
 
-    // one_player(&mut game);
-    two_players(&mut game);
+    // game.run(0);
+    // game.run(0);
+    // game.run(1);
+    // game.run(1);
+    // game.run(2);
+    // println!("{}", game.board);
+
+    // let (score_red, score_yellow) = game.last_score();
+    // println!("red: {score_red:?}, yellow: {score_yellow:?}");
+    // let red_greater_than = score_red > score_yellow;
+    // println!("{red_greater_than}");
+
+    no_player(&mut game, [3,2,4,1,5,0,6]);
+    // two_players(&mut game);
 }
 
-fn one_player<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
-    game.minimax(3);
+fn no_player<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>, order_list: [usize; M]) {
+    let (score, moves) = game.minimax(8,  Score([-1;K]), Score([1;K]), order_list);
+    println!("score: {:?}", score);
+    println!("moves: {:?}", moves);
 }
 
-fn two_players<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
+fn _two_players<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
     loop {
         println!("\n{:?}'s turn:", game.turn);
 
