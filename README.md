@@ -7,8 +7,19 @@ A working example game is set up in `src/main.rs`.
 
 ### Features
 
-The undo function undoes the last move. The board is one vector with column-major order. A score list keeps track of the number of open chains on the board. When a chain's sides are blocked off, it's no longer open. The score vector is a list, where each element represents the number of chains with the length of its index. If a player creates a chain of k-in-a-row, they win.
+The two player game is set up in `two_players()`.
+
+A minimax algorithm with alpha-beta pruning is available in `no_player()`.
+
+A score list keeps track of the number of open chains on the board.
+When a chain's sides are blocked off, it's no longer open.
+The score vector is a list, where each element represents the number of chains with the length of its index.
+If a player creates a chain of k-in-a-row, they win.
+
+The undo function undoes the last move.
+The board is one vector with column-major order.
 
 ## Thoughts
 
-I plan to implement a minimax algorithm for an arbitrary board size in the future.
+The score mechanic is probably over-engineered and I should have just went with the highest row of each player, since you don't really need more for a minimax algorithm.
+A connect-k game is rather simple and you can often just search the entire tree directly.
