@@ -92,9 +92,9 @@ impl<const K: usize> Ord for Score<K> {
     fn cmp(&self, other: &Self) -> Ordering {
         for i in (0..K).rev() {
             match self.0[i].cmp(&other.0[i]) {
+                Ordering::Equal => (),
                 Ordering::Greater => return Ordering::Greater,
                 Ordering::Less => return Ordering::Less,
-                Ordering::Equal => ()
             }
         }
         Ordering::Equal
@@ -105,11 +105,11 @@ impl<const K: usize> Sub for Score<K> {
     type Output = Score<K>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Score(
-            self.0.iter().zip(rhs.0.iter())
-                .map(|(lhs, rhs)| lhs - rhs)
-                .collect::<Vec<i32>>().try_into().unwrap()
-        )
+        let result: [i32; K] = self.0.iter().zip(rhs.0.iter())
+            .map(|(red, yellow)| red - yellow)
+            .collect::<Vec<i32>>().try_into().unwrap();
+
+        Score(result)
     }
 }
 
@@ -142,40 +142,30 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         score_red - score_yellow
     }
 
-    pub fn minimax(&mut self, depth: usize, mut alpha: Score<K>, mut beta: Score<K>, order_list: [usize; M]) -> (Score<K>, Vec<usize>) {
-        if depth == 0 { return (self.eval(), self.move_list.clone()) }
+    pub fn minimax(&mut self, depth: usize, mut alpha: Score<K>, mut beta: Score<K>, order_list: &[usize; M]) -> Score<K> {
+        if depth == 0 { return self.eval() }
 
-        let mut max_eval = if self.turn == Color::Yellow { Score([1; K]) } else { Score([-1; K]) };
-        let mut best_moves = Vec::new();
+        let mut best_eval = if self.turn == Color::Red { Score([-1; K]) } else { Score([1; K]) };
+        let mut best_move = 0;
 
-        for column in order_list {
+        for &column in order_list {
             if let Ok(result) = self.run(column) {
                 if result.is_none() {
-                    let (eval,  moves) = self.minimax(depth - 1, alpha.clone(), beta.clone(), order_list);
-                    if self.turn == Color::Yellow {
-                        if max_eval.cmp(&eval) == Ordering::Less {
-                            max_eval = eval;
-                            best_moves = moves;
-                        }
-                    } else {
-                        if max_eval.cmp(&eval) == Ordering::Greater {
-                            max_eval = eval;
-                            best_moves = moves;
-                        }
-                    }
-
-                    println!("{:?}", self.move_list);
-                    if self.turn == Color::Yellow { alpha = alpha.max(max_eval.clone()) }
-                    else { beta = beta.min(max_eval.clone()) }
-                    if beta <= alpha { self.undo(); break }
-
+                    let eval = self.minimax(depth - 1, alpha.clone(), beta.clone(), order_list);
                     self.undo();
+
+                    if (self.turn == Color::Red) == (best_eval.cmp(&eval) == Ordering::Less) {
+                        if self.turn == Color::Red { alpha = alpha.max(eval.clone()) } else { beta = beta.min(eval.clone()) }
+                        best_eval = eval;
+                        if beta <= alpha { break }
+                    }
                 } else {
-                    self.undo(); return (self.eval(), best_moves)
+                    self.undo();
+                    return if self.turn == Color::Red { Score([1; K]) } else { Score([-1; K]) };
                 }
             }
         }
-        (max_eval, best_moves)
+        best_eval
     }
 
     pub fn run(&mut self, column: usize) -> Result<Option<bool>, &'static str> {
@@ -214,7 +204,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
             let mut pos = next_pos(last_move, dir);
             if let Ok(Some(color)) = self.board.get_chip(pos) {
                 colors[i] = Some(color);
-                lengths[i] += 1;
+                lengths[i] = 1;
                 pos = next_pos(pos, dir);
                 while self.board.get_chip(pos) == Ok(Some(color)) {
                     lengths[i] += 1;
@@ -226,28 +216,34 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
 
         let turn = self.turn;
         let (mut score_red, mut score_yellow) = self.last_score();
-        let (score_turn, score_other) = if turn == Color::Red {
-            (&mut score_red, &mut score_yellow)
-        } else {
-            (&mut score_yellow, &mut score_red)
-        };
+        let (score_turn, score_other) = if turn == Color::Red
+            { (&mut score_red, &mut score_yellow) } else { (&mut score_yellow, &mut score_red) };
 
         for i in 0..8 {
             let j = (i+4)%8;
             match colors[i] {
                 Some(color) if color == turn => {
-                    match colors[j] {
-                        Some(color) if color == turn => {
-                            if lengths[i] + lengths[j] >= K { score_turn.0[K-1] += 1 } // returns two instead of one, doesn't matter because game is over
-                            else { score_turn.0[lengths[i] + lengths[j]] += open[i] as i32 };
-                        },
-                        Some(_) => score_turn.0[lengths[i]] += open[i] as i32,
-                        None => score_turn.0[lengths[i]] += open[i] as i32 + open[j] as i32
+                    let length = if colors[j] == Some(turn) { lengths[i] + lengths[j] } else { lengths[i] };
+                    if length >= K-1 { score_turn.0[K-1] += 1 }
+                    else {
+                        if open[i] { score_turn.0[length] += 1 }
+                        if colors[j].is_none() && open[j] { score_turn.0[length] += 1 }
                     }
-                    score_turn.0[lengths[i]-1] -= 1 + open[i] as i32;
+                    score_turn.0[lengths[i]-1] -= 1;
+                    if open[i] { score_turn.0[lengths[i]-1] -= 1 }
+
+                    // match colors[j] {
+                    //     Some(color) if color == turn => {
+                    //         if lengths[i] + lengths[j] + 1 >= K { score_turn.0[K-1] += 1 } // returns two instead of one, doesn't matter because game is over
+                    //         else { score_turn.0[lengths[i] + lengths[j]] += open[i] as i32 };
+                    //     },
+                    //     Some(_) => score_turn.0[lengths[i]] += open[i] as i32,
+                    //     None => score_turn.0[lengths[i]] += open[i] as i32 + open[j] as i32
+                    // }
+                    // score_turn.0[lengths[i]-1] -= 1 + open[i] as i32;
                 },
                 Some(_) => score_other.0[lengths[i]-1] -= 1,
-                None => if colors[j] != Some(turn) { score_turn.0[0] += open[i] as i32 }
+                None => if colors[j] != Some(turn) && open[i] { score_turn.0[0] += 1 }
             }
         }
 
