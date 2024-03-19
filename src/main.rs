@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::io::stdin;
 use crate::game::{Color, Game, Score};
 
@@ -7,75 +6,60 @@ pub mod game;
 fn main() {
     let mut game: Game<7, 6, 4> = Game::new();
 
-    // no_player(&mut game, [3,4,2,5,1,6,0]);
-    one_player(&mut game, [3,4,2,5,1,6,0])
-    // two_players(&mut game);
+    // play(&mut game, (Some(12), Some(12)), [3,4,2,5,1,6,0]); // computer vs computer
+    play(&mut game, (None, Some(12)), [3,4,2,5,1,6,0]); // player vs computer
+    // play(&mut game, (None, None), [3,4,2,5,1,6,0]); // player vs player
 }
 
-fn no_player<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>, order_list: [usize; M]) {
-    let score = game.minimax(4,  Score([-1;K]), Score([1;K]), &order_list);
-    println!("score: {:?}", score);
-}
-
-fn one_player<const M: usize, const N: usize, const K: usize>(game: &mut Game<M, N, K>, order_list: [usize; M]) {
-    loop {
+fn play<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>, computers: (Option<usize>, Option<usize>), order_list: [usize; M]) {
+    let mut go = true;
+    while go {
         println!("\n{:?}'s turn:", game.turn);
-        let result;
-
         if game.turn == Color::Red {
-            let mut input = String::new();
-            stdin().read_line(&mut input).unwrap();
-            if input.trim().to_lowercase() == "undo" { game.undo(); continue }
+            if let Some(go_) = turn(game, computers.0, order_list) { go = go_ }
+        } else if let Some(go_) = turn(game, computers.1, order_list) { go = go_ }
+    }
+}
 
-            if let Ok(column) =  input.trim().parse::<usize>() {
-                result = game.run(column.saturating_sub(1));
-            } else { println!("Please type a number"); continue; }
-        } else {
-            let mut best_eval = Score([1; K]);
-            let mut best_move = 0;
+fn turn<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>, computer: Option<usize>, order_list: [usize; M]) -> Option <bool> {
+    if let Some(depth) = computer { Some(computer_turn(game, depth, order_list)) }
+    else { player_turn(game) }
+}
 
-            for column in 0..M {
-                if game.run(column) == Ok(None) {
-                    let eval = game.minimax(10, Score([-1;K]), Score([1;K]), &order_list);
-                    if best_eval.cmp(&eval) == Ordering::Greater {
-                        best_eval = eval;
-                        best_move = column;
-                    }
-                    game.undo();
-                }
-            }
-            result = game.run(best_move);
-        }
+
+fn player_turn<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) -> Option<bool> {
+    let input = input();
+    if input == "undo" { game.undo(); game.undo(); return None }
+
+    if let Ok(column) =  input.parse::<usize>() {
+        Some(turn_inner(game, column.saturating_sub(1)))
+    } else { println!("Please type a number"); None }
+}
+
+fn computer_turn<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>, depth: usize, order_list: [usize; M]) -> bool {
+    println!("Computer is thinking...");
+    let (eval, best_move) = game.minimax(depth, Score([-1;K]), Score([1;K]), &order_list);
+    println!("Computer's evaluation: {eval:?}");
+    turn_inner(game, best_move)
+}
+
+fn turn_inner<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>, column: usize) -> bool {
+    let result = game.run(column);
+
+    if result.is_ok() {
         println!("{}", game.board);
         println!("Score: {:?}", game.last_score());
-        match result {
-            Ok(Some(true)) => { println!("{:?} wins!", game.not_turn()); break },
-            Ok(Some(false)) => { println!("Draw!"); break },
-            Ok(None) => (),
-            Err(error) => println!("{error}")
-        }
+    }
+    match result {
+        Ok(Some(true)) => { println!("{:?} wins!", game.not_turn()); false },
+        Ok(Some(false)) => { println!("Draw!"); false },
+        Ok(None) => true,
+        Err(error) => {println!("{error}"); true}
     }
 }
 
-fn two_players<const M: usize, const N: usize, const K: usize>(game: &mut Game<M,N,K>) {
-    loop {
-        println!("\n{:?}'s turn:", game.turn);
-
-        let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
-
-        if input.trim().to_lowercase() == "undo" { game.undo(); continue }
-
-        if let Ok(column) =  input.trim().parse::<usize>() {
-            let result = game.run(column.saturating_sub(1));
-            println!("{}", game.board);
-            println!("Score: {:?}", game.last_score());
-            match result {
-                Ok(Some(true)) => { println!("{:?} wins!", game.not_turn()); break },
-                Ok(Some(false)) => { println!("Draw!"); break },
-                Ok(None) => (),
-                Err(error) => println!("{error}")
-            }
-        } else { println!("Please type a number") }
-    }
+fn input() -> String {
+    let mut input = String::new();
+    stdin().read_line(&mut input).unwrap();
+    input.trim().to_lowercase()
 }

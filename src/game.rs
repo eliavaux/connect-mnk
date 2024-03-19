@@ -142,30 +142,37 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         score_red - score_yellow
     }
 
-    pub fn minimax(&mut self, depth: usize, mut alpha: Score<K>, mut beta: Score<K>, order_list: &[usize; M]) -> Score<K> {
-        if depth == 0 { return self.eval() }
+    pub fn minimax(&mut self, depth: usize, mut alpha: Score<K>, mut beta: Score<K>, order_list: &[usize; M]) -> (Score<K>, usize) {
+        if depth == 0 { return (self.eval(), 0) }
 
         let mut best_eval = if self.turn == Color::Red { Score([-1; K]) } else { Score([1; K]) };
         let mut best_move = 0;
 
         for &column in order_list {
             if let Ok(result) = self.run(column) {
-                if result.is_none() {
-                    let eval = self.minimax(depth - 1, alpha.clone(), beta.clone(), order_list);
+                if result != Some(true) {
+                    let (eval, _) = self.minimax(depth - 1, alpha.clone(), beta.clone(), order_list);
                     self.undo();
 
-                    if (self.turn == Color::Red) == (best_eval.cmp(&eval) == Ordering::Less) {
-                        if self.turn == Color::Red { alpha = alpha.max(eval.clone()) } else { beta = beta.min(eval.clone()) }
-                        best_eval = eval;
+                    if self.turn == Color::Red && best_eval < eval {
+                        best_eval = eval.clone();
+                        best_move = column;
+                        alpha = alpha.max(eval);
+                        if beta <= alpha { break }
+                    }
+                    else if self.turn == Color::Yellow && best_eval > eval  {
+                        best_eval = eval.clone();
+                        best_move = column;
+                        beta = beta.min(eval);
                         if beta <= alpha { break }
                     }
                 } else {
                     self.undo();
-                    return if self.turn == Color::Red { Score([1; K]) } else { Score([-1; K]) };
+                    return if self.turn == Color::Red { (Score([1; K]), column) } else { (Score([-1; K]), column) };
                 }
             }
         }
-        best_eval
+        (best_eval, best_move)
     }
 
     pub fn run(&mut self, column: usize) -> Result<Option<bool>, &'static str> {
@@ -231,16 +238,6 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
                     }
                     score_turn.0[lengths[i]-1] -= 1;
                     if open[i] { score_turn.0[lengths[i]-1] -= 1 }
-
-                    // match colors[j] {
-                    //     Some(color) if color == turn => {
-                    //         if lengths[i] + lengths[j] + 1 >= K { score_turn.0[K-1] += 1 } // returns two instead of one, doesn't matter because game is over
-                    //         else { score_turn.0[lengths[i] + lengths[j]] += open[i] as i32 };
-                    //     },
-                    //     Some(_) => score_turn.0[lengths[i]] += open[i] as i32,
-                    //     None => score_turn.0[lengths[i]] += open[i] as i32 + open[j] as i32
-                    // }
-                    // score_turn.0[lengths[i]-1] -= 1 + open[i] as i32;
                 },
                 Some(_) => score_other.0[lengths[i]-1] -= 1,
                 None => if colors[j] != Some(turn) && open[i] { score_turn.0[0] += 1 }
@@ -250,10 +247,10 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
         (score_red, score_yellow)
         // if open none and other side not turn color, +1T
         // count up
-        //  if turn color and other side open none, +l+1T for each open side   *
+        //  if turn color and other side open none, +l+1T for each open side
         //  if turn color and other side turn color, +combined+1T for each open side
-        // get rid of trash     *
-        //  if turn color, -lT if closed, -lT -lT if open   *
-        //  if other color, -lO     *
+        // get rid of old
+        //  if turn color, -lT if closed, -lT -lT if open
+        //  if other color, -lO
     }
 }
