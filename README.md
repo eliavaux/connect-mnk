@@ -2,14 +2,12 @@
 
 A simple [m,n,k-game](https://en.wikipedia.org/wiki/M,n,k-game) with Connect Four rules (i.e. every chip must be placed at the lowest position).
 
-The size of the board (M * N) and the number of chips in a row required to win (K) are defined when initializing the board struct. 
-A working example game is set up in `src/main.rs`.
+The size of the board (M * N) and the number of chips in a row required to win (K) are defined when initializing the board struct.
+It comes with a working alpha-beta pruning minimax algorithm. A working example game is set up in `src/main.rs`.
 
 ### Features
 
-A minimax algorithm with alpha-beta pruning is available in `no_player()`.
-You can play against the algorithm in `one_player()`.
-Otherwise, a two player game is set up in `two_players()`.
+With the `play()` function, you can set up a game between two players, a player versus the computer or two computers playing against each other. 
 The undo function undoes the last move.
 
 The board is one vector with column-major order.
