@@ -143,33 +143,45 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     }
 
     pub fn minimax(&mut self, depth: usize, mut alpha: Score<K>, mut beta: Score<K>, order_list: &[usize; M]) -> (Score<K>, usize) {
-        if depth == 0 { return (self.eval(), 0) }
+        if depth == 0 || self.is_draw() { return (self.eval(), 0) }
 
         let mut best_eval = if self.turn == Color::Red { Score([-1; K]) } else { Score([1; K]) };
         let mut best_move = 0;
 
         for &column in order_list {
-            if let Ok(result) = self.run(column) {
-                if result != Some(true) {
+            match self.run(column) {
+                Ok(None) | Ok(Some(false)) | Ok(Some(true)) => {
                     let (eval, _) = self.minimax(depth - 1, alpha.clone(), beta.clone(), order_list);
+                    
+                    // if eval == best_eval {
+                    //     println!("eval == best_eval:");
+                    //     println!("{}", self.board);
+                    //     println!("{:?}", self.turn);
+                    //     println!("{:?}", eval);
+                    //     println!();
+                    // }
+                    
                     self.undo();
-
-                    if self.turn == Color::Red && best_eval < eval {
+                    
+                    if self.turn == Color::Red && eval >= best_eval {
                         best_eval = eval.clone();
                         best_move = column;
                         alpha = alpha.max(eval);
-                        if beta <= alpha { break }
+                        // if beta <= alpha { break }
                     }
-                    else if self.turn == Color::Yellow && best_eval > eval  {
+                    else if self.turn == Color::Yellow && eval <= best_eval  {
                         best_eval = eval.clone();
                         best_move = column;
                         beta = beta.min(eval);
-                        if beta <= alpha { break }
+                        // if beta <= alpha { break }
                     }
-                } else {
-                    self.undo();
-                    return if self.turn == Color::Red { (Score([1; K]), column) } else { (Score([-1; K]), column) };
-                }
+                },
+                // Ok(Some(true)) => {
+                //     let eval = self.eval();
+                //     self.undo();
+                //     return (eval, column)
+                // },
+                Err(_) => (),
             }
         }
         (best_eval, best_move)
@@ -203,7 +215,7 @@ impl<const M: usize, const N: usize, const K: usize> Game<M, N, K> {
     }
 
     fn score(&mut self, last_move: Pos) -> (Score<K>, Score<K>) {
-        let mut colors= [None; 8];
+        let mut colors = [None; 8];
         let mut lengths = [0; 8];
         let mut open = [false; 8];
 
