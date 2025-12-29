@@ -158,8 +158,6 @@ impl Game {
     }
 
     fn minimax_rec_inner(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
-        // println!("new recursion call");
-
         let mut best_moves = Vec::new();
         let mut best_move = 0;
 
@@ -185,7 +183,6 @@ impl Game {
                     // dbg!(&new_score, &best_score);
                     if self.turn() == Color::Red {
                         if new_score > best_score {
-                            // println!("new best score found");
                             best_score = new_score.clone();
                             best_moves = moves;
                             best_move = i;
@@ -194,7 +191,6 @@ impl Game {
                         }
                     } else {
                         if new_score < best_score {
-                            // println!("new best score found");
                             best_score = new_score.clone();
                             best_moves = moves;
                             best_move = i;

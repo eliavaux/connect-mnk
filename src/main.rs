@@ -8,72 +8,11 @@ use std::num::ParseIntError;
 
 fn main() {
     let mut board = Game::new(7, 6, 4);
-    /*
-    board.run(3);
-    println!("{board}");
-    println!("{:?}", board.last_score());
-    board.run(4);
-    println!("{board}");
-    println!("{:?}", board.last_score());
-    board.run(4);
-    println!("{board}");
-    println!("{:?}", board.last_score());
-    board.run(3);
-    println!("{board}");
-    println!("{:?}", board.last_score());
-    board.run(4);
-    println!("{board}");
-    println!("{:?}", board.last_score());
-    board.run(3);
-    println!("{board}");
-    println!("{:?}", board.last_score());
-    */
-
     
-    // let p1 = Player::Computer(8);
     let p1 = Player::Human;
     let p2 = Player::Computer(10);
-    // let p2 = Player::Human;
     
     play(&mut board, &p1, &p2);
-   
-
-    
-    /* board.run(2);
-    board.run(2);
-    board.run(3);
-    board.run(3);
-    board.run(4);
-    board.run(4);
-   
-
-    
-    let move_order = [3, 2, 4, 1, 5, 0, 6];
-    let move_order = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-    let (score, best_moves) = board.minimax_rec(10, &move_order);
-
-    println!();
-    println!("best_moves: {:?}", best_moves);
-    println!("before");
-    println!("{}", board);
-    println!("{:?}", score);
-
-    for column in best_moves {
-        board.run(column);
-    }
-    
-    println!("after");
-    println!("{}", board);
-    println!("{:?}", board.last_score()); */
-   
-
-    /*
-    let a: Score = vec![-7, -1, 0, 1].into();
-    let b: Score = vec![3, 0, 0, 0].into();
-
-    dbg!(a.cmp(&b));
-    dbg!(a > b);
-    */
 }
 
 enum Player {
@@ -83,7 +22,6 @@ enum Player {
 
 fn play(board: &mut Game, p1: &Player, p2: &Player) {
     let move_order = [3, 2, 4, 1, 5, 0, 6];
-    // let move_order = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
     loop {
         let turn = board.turn();
