@@ -99,14 +99,17 @@ impl Game {
         }
     }
 
+    #[inline(always)]
     pub fn width(&self) -> usize {
         self.width
     }
 
+    #[inline(always)]
     pub fn height(&self) -> usize {
         self.height
     }
 
+    #[inline(always)]
     pub fn k(&self) -> usize {
         self.k
     }
