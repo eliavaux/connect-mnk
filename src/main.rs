@@ -21,8 +21,6 @@ enum Player {
 }
 
 fn play(board: &mut Game, p1: &Player, p2: &Player) {
-    let move_order = [3, 2, 4, 1, 5, 0, 6];
-
     loop {
         let turn = board.turn();
         println!("{turn}'s turn");
@@ -67,7 +65,7 @@ fn play(board: &mut Game, p1: &Player, p2: &Player) {
                 }
             }
             Player::Computer(depth) => {
-                let (_score, move_list) = board.minimax_rec(*depth, &move_order);
+                let (_score, move_list) = board.minimax_rec(*depth);
                 let column = move_list.last().unwrap();
                 let state = board.run(*column);
                 println!("{board}");

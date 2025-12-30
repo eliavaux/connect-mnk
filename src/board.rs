@@ -153,10 +153,24 @@ impl Game {
         todo!()
     }
 
-    pub fn minimax_rec(&mut self, depth: usize, move_order: &[usize]) -> (Score, Vec<usize>) {
+    pub fn minimax_rec(&mut self, depth: usize) -> (Score, Vec<usize>) {
+        let move_order = {
+            let width = self.width as i32;
+            let mut acc = width / 2;
+            let mut sign = -1;
+            let mut res = Vec::new();
+
+            for i in 1..=width {
+                res.push(acc as usize);
+                acc += sign * i;
+                sign = -sign;
+            }
+
+            res
+        };
         let alpha = vec![i32::MIN; 4].into();
         let beta = vec![i32::MAX; 4].into();
-        self.minimax_rec_inner(depth, alpha, beta, move_order)
+        self.minimax_rec_inner(depth, alpha, beta, &move_order)
     }
 
     fn minimax_rec_inner(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
