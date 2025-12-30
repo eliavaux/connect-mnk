@@ -1,5 +1,4 @@
 use std::fmt::{self, Display, Formatter};
-use Color::*;
 
 type Pos = (usize, usize);
 
@@ -12,6 +11,7 @@ pub enum Color {
 
 impl Display for Color {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use Color::{Red, Yellow};
         write!(f, "{}", match self {
             Red => "Red",
             Yellow => "Yellow",
@@ -21,6 +21,7 @@ impl Display for Color {
 
 impl Color {
     fn other(&self) -> Self {
+        use Color::{Red, Yellow};
         match self {
             Red => Yellow,
             Yellow => Red
@@ -453,6 +454,7 @@ impl Game {
 
 impl Display for Game {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use Color::{Red, Yellow};
         for row in 0..self.height {
             for col in 0..self.width {
                 match self.board[self.height * (col + 1) - row - 1] {
