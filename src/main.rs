@@ -61,11 +61,12 @@ fn play(board: &mut Game, p1: &Player, p2: &Player) {
                         println!("{:?}", board.last_score());
                     },
                     Ok(PlayerInput::Quit) => break,
-                    Err(error) => println!("Could not parse input, try again")
+                    Err(ParseInputError::OutOfRange) => println!("Column is out of range"),
+                    Err(ParseInputError::Parse(error)) => println!("Could not parse input, try again: {error:?}")
                 }
             }
             Player::Computer(depth) => {
-                let (score, move_list) = board.minimax_rec(*depth, &move_order);
+                let (_score, move_list) = board.minimax_rec(*depth, &move_order);
                 let column = move_list.last().unwrap();
                 let state = board.run(*column);
                 println!("{board}");
@@ -98,6 +99,7 @@ enum PlayerInput {
     Quit
 }
 
+#[derive(Debug)]
 enum ParseInputError {
     Parse(ParseIntError),
     OutOfRange,
