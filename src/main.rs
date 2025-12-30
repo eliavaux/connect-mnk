@@ -57,6 +57,7 @@ fn play(board: &mut Game, p1: &Player, p2: &Player) {
                     },
                     Ok(PlayerInput::Undo) => {
                         board.undo();
+                        board.undo();
                         println!("{board}");
                         println!("{:?}", board.last_score());
                     },
