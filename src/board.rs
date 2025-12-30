@@ -450,6 +450,84 @@ impl Game {
             }
         }
     }
+
+    pub fn serialize(&self) -> String {
+        format!("{self}")
+    }
+
+    pub fn deserialize(input: &str, k: usize) -> Result<Self, &str> {
+        let mut board = Vec::new();
+        let mut width = None;
+
+        // Deserialize the board
+        for line in input.lines().rev() {
+            let line = line.trim();
+            if line.is_empty() { continue }
+            let mut row = Vec::new();
+            for symbol in line.chars() {
+                use Color::{Red, Yellow};
+
+                let field = match symbol {
+                    'X' => Some(Red),
+                    'O' => Some(Yellow),
+                    '_' => None,
+                    ' ' => continue,
+                    _ => return Err("Bad symbol"),
+                };
+                row.push(field);
+            }
+
+            if let Some(width) = width {
+                if row.len() != width {
+                    dbg!(width, row.len());
+                    return Err("Different widths")
+                }
+            } else {
+                width = Some(row.len())
+            }
+
+            board.push(row);
+        }
+
+        let Some(width) = width else { return Err("Empty input") };
+
+        let height = board.len();
+
+
+        // Reconstruct the move list
+        let mut move_list = Vec::new();
+        let mut indexes = vec![0; width].into_boxed_slice();
+        let mut turn = Color::Red;
+
+        loop {
+            let mut found = false;
+            for i in 0..width {
+                if indexes[i] == height { continue }
+                if board[indexes[i]][i] == Some(turn) {
+                    move_list.push(i);
+                    indexes[i] += 1;
+                    found = true;
+                    turn = turn.other();
+                }
+            }
+            if !found { break }
+        }
+
+        for i in 0..width {
+            if indexes[i] == height { continue }
+            if board[indexes[i]][i] != None {
+                return Err("Can't reconstruct move list")
+            }
+        }
+
+        let mut board = Self::new(width, height, k);
+
+        for i in move_list {
+            board.run_unchecked(i);
+        }
+
+        Ok(board)
+    }
 }
 
 impl Display for Game {

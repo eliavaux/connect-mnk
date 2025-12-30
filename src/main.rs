@@ -8,11 +8,24 @@ use std::num::ParseIntError;
 
 fn main() {
     let mut board = Game::new(7, 6, 4);
+
+    let input = "
+        X _ O X O O _
+        O _ X O X X _
+        X O X X O O _
+        O X X O X X _
+        O O O X O O O
+        X X X O O X X
+    ";
+
+    let mut board = Game::deserialize(input, 4).unwrap();
     
-    let p1 = Player::Human;
-    let p2 = Player::Computer(10);
+    println!("{board}");
     
-    play(&mut board, &p1, &p2);
+    // let p1 = Player::Computer(12);
+    // let p2 = Player::Computer(10);
+    
+    // play(&mut board, &p1, &p2);
 }
 
 enum Player {
