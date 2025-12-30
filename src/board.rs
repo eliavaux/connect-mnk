@@ -115,7 +115,7 @@ impl Game {
         self.turn
     }
 
-    pub fn minimax(&mut self, depth: usize) {
+    pub fn minimax_iterative(&mut self, depth: usize) {
         let mut dfs_stack: Box<[_]> = vec![0; depth].into();
 
         let mut i = 0;
@@ -149,6 +149,8 @@ impl Game {
                 println!();
             }
         }
+
+        todo!()
     }
 
     pub fn minimax_rec(&mut self, depth: usize, move_order: &[usize]) -> (Score, Vec<usize>) {
