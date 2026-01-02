@@ -53,7 +53,7 @@ impl From<Vec<i32>> for Score {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum GameState {
     Win(Color),
     Draw,
@@ -78,7 +78,7 @@ pub enum DeserializeError {
     UnreachablePosition
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Game {
     width: usize,
     height: usize,
@@ -107,14 +107,17 @@ impl Game {
         }
     }
 
+    #[inline(always)]
     pub fn width(&self) -> usize {
         self.width
     }
 
+    #[inline(always)]
     pub fn height(&self) -> usize {
         self.height
     }
 
+    #[inline(always)]
     pub fn k(&self) -> usize {
         self.k
     }
@@ -199,8 +202,6 @@ impl Game {
 
         for &i in move_order {
             let result = self.run_unchecked(i);
-            // println!("{self}");
-            // println!("{:?}", self.last_score());
             match result {
                 Some(GameState::InProgress) => {
                     let (new_score, moves) = self.minimax_rec_inner(depth - 1, alpha.clone(), beta.clone(), move_order);
@@ -224,7 +225,7 @@ impl Game {
                         }
                     }
                 },
-                Some(GameState::Win(col)) => {
+                Some(GameState::Win(_)) => {
                     self.undo();
                     let best_score = if self.turn() == Color::Red {
                         vec![i32::MAX - 1; self.k].into()
@@ -294,13 +295,16 @@ impl Game {
         if full_spaces == self.height { return None }
 
         let score = self.score((column, full_spaces), color);
-        if *score.0.last().unwrap() != 0 {
-            self.game_state = GameState::Win(self.turn());
-        }
         self.score_list.push(score);
         self.board[self.height * column + full_spaces] = Some(color);
         self.full_spaces[column] += 1;
         self.move_list.push(column);
+        
+        if *self.last_score().0.last().unwrap() != 0 {
+            self.game_state = GameState::Win(self.turn());
+        } else if self.full_spaces.iter().all(|&s| s == self.height()) {
+             self.game_state = GameState::Draw
+        }
 
         Some(full_spaces)
     }
