@@ -10,22 +10,22 @@ fn main() {
     let mut board = Game::new(7, 6, 4);
 
     let input = "
-        X _ O X O O _
-        O _ X O X X _
-        X O X X O O _
-        O X X O X X _
-        O O O X O O O
-        X X X O O X X
+        _ _ _ _ _ _ _
+        _ _ _ _ _ _ _
+        _ _ _ _ _ _ _
+        _ _ _ X _ _ _
+        _ _ X O _ _ _
+        _ _ O X X O _
     ";
 
     let mut board = Game::deserialize(input, 4).unwrap();
     
     println!("{board}");
     
-    // let p1 = Player::Computer(12);
-    // let p2 = Player::Computer(10);
+    let p1 = Player::Computer(10);
+    let p2 = Player::Computer(10);
     
-    // play(&mut board, &p1, &p2);
+    play(&mut board, &p1, &p2);
 }
 
 enum Player {

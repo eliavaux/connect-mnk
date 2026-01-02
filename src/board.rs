@@ -70,6 +70,14 @@ pub enum ExtractError {
     ColumnEmpty,
 }
 
+#[derive(Debug)]
+pub enum DeserializeError {
+    EmptyInput,
+    DifferentWidths,
+    BadSymbol(char),
+    UnreachablePosition
+}
+
 #[derive(Clone)]
 pub struct Game {
     width: usize,
@@ -455,7 +463,9 @@ impl Game {
         format!("{self}")
     }
 
-    pub fn deserialize(input: &str, k: usize) -> Result<Self, &str> {
+    pub fn deserialize(input: &str, k: usize) -> Result<Self, DeserializeError> {
+        use DeserializeError::{EmptyInput, DifferentWidths, BadSymbol, UnreachablePosition};
+
         let mut board = Vec::new();
         let mut width = None;
 
@@ -472,7 +482,7 @@ impl Game {
                     'O' => Some(Yellow),
                     '_' => None,
                     ' ' => continue,
-                    _ => return Err("Bad symbol"),
+                    s => return Err(BadSymbol(s)),
                 };
                 row.push(field);
             }
@@ -480,7 +490,7 @@ impl Game {
             if let Some(width) = width {
                 if row.len() != width {
                     dbg!(width, row.len());
-                    return Err("Different widths")
+                    return Err(DifferentWidths)
                 }
             } else {
                 width = Some(row.len())
@@ -489,7 +499,7 @@ impl Game {
             board.push(row);
         }
 
-        let Some(width) = width else { return Err("Empty input") };
+        let Some(width) = width else { return Err(EmptyInput) };
 
         let height = board.len();
 
@@ -516,7 +526,7 @@ impl Game {
         for i in 0..width {
             if indexes[i] == height { continue }
             if board[indexes[i]][i] != None {
-                return Err("Can't reconstruct move list")
+                return Err(UnreachablePosition)
             }
         }
 
