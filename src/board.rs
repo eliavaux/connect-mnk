@@ -302,7 +302,7 @@ impl Game {
         
         if *self.last_score().0.last().unwrap() != 0 {
             self.game_state = GameState::Win(self.turn());
-        } else if self.full_spaces.iter().all(|&s| s == self.height()) {
+        } else if self.move_list.len() == self.height() * self.width() {
              self.game_state = GameState::Draw
         }
 
