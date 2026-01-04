@@ -182,10 +182,16 @@ impl Game {
         };
         let alpha = vec![i32::MIN; 4].into();
         let beta = vec![i32::MAX; 4].into();
-        self.minimax_rec_inner(depth, alpha, beta, &move_order)
+
+
+        if self.turn() == Color::Red {
+            self.minimax_rec_inner_red(depth, alpha, beta, &move_order)
+        } else {
+            self.minimax_rec_inner_yellow(depth, alpha, beta, &move_order)
+        }
     }
 
-    fn minimax_rec_inner(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
+    fn minimax_rec_inner_red(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
         let mut best_moves = Vec::new();
         let mut best_move = 0;
 
@@ -193,45 +199,28 @@ impl Game {
             return (self.last_score().clone(), best_moves);
         }
 
-        let mut best_score = if self.turn() == Color::Red {
-            vec![i32::MIN; self.k].into()
-        } else {
-            vec![i32::MAX; self.k].into()
-        };
+        let mut best_score = vec![i32::MIN; self.k].into();
         let current_turn = self.turn();
 
         for &i in move_order {
             let result = self.run_unchecked(i);
             match result {
                 Some(GameState::InProgress) => {
-                    let (new_score, moves) = self.minimax_rec_inner(depth - 1, alpha.clone(), beta.clone(), move_order);
+                    let (new_score, moves) = self.minimax_rec_inner_yellow(depth - 1, alpha.clone(), beta.clone(), move_order);
                     self.undo();
-                    // dbg!(&new_score, &best_score);
-                    if self.turn() == Color::Red {
-                        if new_score > best_score {
-                            best_score = new_score.clone();
-                            best_moves = moves;
-                            best_move = i;
-                            alpha = alpha.max(new_score);
-                            if beta <= alpha { break }
-                        }
-                    } else {
-                        if new_score < best_score {
-                            best_score = new_score.clone();
-                            best_moves = moves;
-                            best_move = i;
-                            beta = beta.min(new_score);
-                            if beta <= alpha { break }
-                        }
+
+                    if new_score > best_score {
+                        best_score = new_score.clone();
+                        best_moves = moves;
+                        best_move = i;
+                        alpha = alpha.max(new_score);
+                        if beta <= alpha { break }
                     }
+                    // dbg!(&new_score, &best_score);
                 },
                 Some(GameState::Win(_)) => {
                     self.undo();
-                    let best_score = if self.turn() == Color::Red {
-                        vec![i32::MAX - 1; self.k].into()
-                    } else {
-                        vec![i32::MIN + 1; self.k].into()
-                    };
+                    let best_score = vec![i32::MAX - 1; self.k].into();
                     return (best_score, vec![i])
                 },
                 Some(GameState::Draw) => {
@@ -247,6 +236,53 @@ impl Game {
         // dbg!(&best_moves, &current_score);
         (best_score, best_moves)
     }
+
+    fn minimax_rec_inner_yellow(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
+        let mut best_moves = Vec::new();
+        let mut best_move = 0;
+
+        if depth == 0 {
+            return (self.last_score().clone(), best_moves);
+        }
+
+        let mut best_score = vec![i32::MAX; self.k].into();
+
+        let current_turn = self.turn();
+
+        for &i in move_order {
+            let result = self.run_unchecked(i);
+            match result {
+                Some(GameState::InProgress) => {
+                    let (new_score, moves) = self.minimax_rec_inner_red(depth - 1, alpha.clone(), beta.clone(), move_order);
+                    self.undo();
+                    // dbg!(&new_score, &best_score);
+                    if new_score < best_score {
+                        best_score = new_score.clone();
+                        best_moves = moves;
+                        best_move = i;
+                        beta = beta.min(new_score);
+                        if beta <= alpha { break }
+                    }
+                },
+                Some(GameState::Win(_)) => {
+                    self.undo();
+                    let best_score = vec![i32::MIN + 1; self.k].into();
+                    return (best_score, vec![i])
+                },
+                Some(GameState::Draw) => {
+                    self.undo();
+                    return (vec![0; self.k].into(), vec![i])
+                }
+                None => continue,
+            }
+        }
+
+        best_moves.push(best_move);
+
+        // dbg!(&best_moves, &current_score);
+        (best_score, best_moves)
+    }
+
 
     pub fn run(&mut self, column: usize) -> Result<GameState, InsertError> {
         self.insert(column, self.turn())?;

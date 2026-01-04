@@ -24,7 +24,7 @@ fn main() {
     
     let p1 = Player::Computer(10);
     let p2 = Player::Computer(10);
-    
+
     play(&mut board, &p1, &p2);
 }
 
