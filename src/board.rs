@@ -1,6 +1,4 @@
-use std::fmt::{self, Display, Formatter};
-
-type Pos = (usize, usize);
+use std::{fmt::{self, Display, Formatter}, ops::{AddAssign, SubAssign}};
 
 #[derive(Clone, Copy, Debug)]
 #[derive(PartialEq, Eq)]
@@ -50,6 +48,22 @@ impl Ord for Score {
 impl From<Vec<i32>> for Score {
     fn from(value: Vec<i32>) -> Self {
         Self(value.into())
+    }
+}
+
+impl AddAssign for Score {
+    fn add_assign(&mut self, rhs: Self) {
+        for (lhs, rhs) in self.0.iter_mut().zip(rhs.0) {
+            *lhs += rhs
+        }
+    }
+}
+
+impl SubAssign for Score {
+    fn sub_assign(&mut self, rhs: Self) {
+        for (lhs, rhs) in self.0.iter_mut().zip(rhs.0) {
+            *lhs -= rhs
+        }
     }
 }
 
@@ -191,23 +205,21 @@ impl Game {
         }
     }
 
-    fn minimax_rec_inner_red(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
-        let mut best_moves = Vec::new();
-        let mut best_move = 0;
-
+    fn minimax_rec_inner_red(&mut self, depth: usize, mut alpha: Score, beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
         if depth == 0 {
-            return (self.last_score().clone(), best_moves);
+            return (self.last_score().clone(), Vec::new());
         }
 
+        let mut best_moves = Vec::new();
+        let mut best_move = 0;
         let mut best_score = vec![i32::MIN; self.k].into();
-        let current_turn = self.turn();
 
         for &i in move_order {
             let result = self.run_unchecked(i);
             match result {
                 Some(GameState::InProgress) => {
                     let (new_score, moves) = self.minimax_rec_inner_yellow(depth - 1, alpha.clone(), beta.clone(), move_order);
-                    self.undo();
+                    self.undo_unchecked();
 
                     if new_score > best_score {
                         best_score = new_score.clone();
@@ -219,12 +231,12 @@ impl Game {
                     // dbg!(&new_score, &best_score);
                 },
                 Some(GameState::Win(_)) => {
-                    self.undo();
+                    self.undo_unchecked();
                     let best_score = vec![i32::MAX - 1; self.k].into();
                     return (best_score, vec![i])
                 },
                 Some(GameState::Draw) => {
-                    self.undo();
+                    self.undo_unchecked();
                     return (vec![0; self.k].into(), vec![i])
                 }
                 None => continue,
@@ -237,24 +249,21 @@ impl Game {
         (best_score, best_moves)
     }
 
-    fn minimax_rec_inner_yellow(&mut self, depth: usize, mut alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
-        let mut best_moves = Vec::new();
-        let mut best_move = 0;
-
+    fn minimax_rec_inner_yellow(&mut self, depth: usize, alpha: Score, mut beta: Score, move_order: &[usize]) -> (Score, Vec<usize>) {
         if depth == 0 {
-            return (self.last_score().clone(), best_moves);
+            return (self.last_score().clone(), Vec::new());
         }
 
+        let mut best_moves = Vec::new();
+        let mut best_move = 0;
         let mut best_score = vec![i32::MAX; self.k].into();
-
-        let current_turn = self.turn();
 
         for &i in move_order {
             let result = self.run_unchecked(i);
             match result {
                 Some(GameState::InProgress) => {
                     let (new_score, moves) = self.minimax_rec_inner_red(depth - 1, alpha.clone(), beta.clone(), move_order);
-                    self.undo();
+                    self.undo_unchecked();
                     // dbg!(&new_score, &best_score);
                     if new_score < best_score {
                         best_score = new_score.clone();
@@ -265,12 +274,12 @@ impl Game {
                     }
                 },
                 Some(GameState::Win(_)) => {
-                    self.undo();
+                    self.undo_unchecked();
                     let best_score = vec![i32::MIN + 1; self.k].into();
                     return (best_score, vec![i])
                 },
                 Some(GameState::Draw) => {
-                    self.undo();
+                    self.undo_unchecked();
                     return (vec![0; self.k].into(), vec![i])
                 }
                 None => continue,
@@ -330,7 +339,7 @@ impl Game {
         let full_spaces = self.full_spaces[column];
         if full_spaces == self.height { return None }
 
-        let score = self.score((column, full_spaces), color);
+        let score = self.score((column, full_spaces));
         self.score_list.push(score);
         self.board[self.height * column + full_spaces] = Some(color);
         self.full_spaces[column] += 1;
@@ -368,19 +377,14 @@ impl Game {
         self.score_list.last().unwrap()
     }
 
-    pub fn score(&mut self, last_move: Pos, color: Color) -> Score {
-        let width = self.width;
-        let height = self.height;
-        let k = self.k - 1;
-        let turn = self.turn();
+    pub fn score(&mut self, last_move: (usize, usize)) -> Score {
+        let ks1 = self.k - 1;
         let (x, y) = last_move;
 
-        let mut score = self.last_score().clone();
-
-        let south = k.min(y);
-        let north = k.min(height - y - 1);
-        let west = k.min(x);
-        let east = k.min(width - x - 1);
+        let south = ks1.min(y);
+        let north = ks1.min(self.height() - y - 1);
+        let west = ks1.min(x);
+        let east = ks1.min(self.width() - x - 1);
 
         let sw = south.min(west);
         let ne = north.min(east);
@@ -388,21 +392,21 @@ impl Game {
         let se = south.min(east);
         
 
-        let mut vertical: Vec<&Option<Color>> = self.board.iter()
-            .skip(height * x + y - south)
+        let vertical: Vec<&Option<Color>> = self.board.iter()
+            .skip(self.height() * x + y - south)
             .take(south + 1 + north)
             .collect();
-        let mut horizontal: Vec<&Option<Color>> = self.board.iter()
-            .skip(height * (x - west) + y)
-            .step_by(height).take(west + 1 + east)
+        let horizontal: Vec<&Option<Color>> = self.board.iter()
+            .skip(self.height() * (x - west) + y)
+            .step_by(self.height()).take(west + 1 + east)
             .collect();
-        let mut sw_ne: Vec<&Option<Color>> = self.board.iter()
-            .skip(height * (x - sw) + y - sw)
-            .step_by(height + 1).take(sw + 1 + ne)
+        let sw_ne: Vec<&Option<Color>> = self.board.iter()
+            .skip(self.height() * (x - sw) + y - sw)
+            .step_by(self.height() + 1).take(sw + 1 + ne)
             .collect();
-        let mut nw_se: Vec<&Option<Color>> = self.board.iter()
-            .skip(height * (x - nw) + y + nw)
-            .step_by(height - 1).take(nw + 1 + se)
+        let nw_se: Vec<&Option<Color>> = self.board.iter()
+            .skip(self.height() * (x - nw) + y + nw)
+            .step_by(self.height() - 1).take(nw + 1 + se)
             .collect();
 
         /* dbg!(north);
@@ -416,28 +420,41 @@ impl Game {
         dbg!(&nw_se); */
 
 
-        self.score_line(&vertical, &mut score);
-        self.score_line(&horizontal, &mut score);
-        self.score_line(&sw_ne, &mut score);
-        self.score_line(&nw_se, &mut score);
-        
+        let score_vertical = self.score_line(&vertical);
+        let score_horizontal = self.score_line(&horizontal);
+        let score_sw_ne = self.score_line(&sw_ne);
+        let score_nw_se = self.score_line(&nw_se);
+
+        let mut score = self.last_score().clone();
+
+        if self.turn() == Color::Red {
+            score += score_vertical;
+            score += score_horizontal;
+            score += score_sw_ne;
+            score += score_nw_se;
+        } else {
+            score -= score_vertical;
+            score -= score_horizontal;
+            score -= score_sw_ne;
+            score -= score_nw_se;
+        }
+
         score
     }
 
-    fn score_line(&self, line: &[&Option<Color>], score: &mut Score) {
-        let k = self.k;
-        let turn = self.turn();
+    fn score_line(&self, line: &[&Option<Color>]) -> Score {
+        let mut score: Score = vec![0; self.k()].into();
 
-        let mut score_diff: Score = vec![0; self.width].into();
+        if line.len() < self.k() {
+            return score;
+        }
+
         let mut count_turn = 0;
         let mut count_other = 0;
 
-        if line.len() < k {
-            return;
-        }
 
-        for color in line.iter().take(k).cloned().flatten() {
-            if *color == turn {
+        for color in line.iter().take(self.k()).cloned().flatten() {
+            if *color == self.turn() {
                 count_turn += 1;
             } else {
                 count_other += 1;
@@ -446,22 +463,22 @@ impl Game {
 
         if count_other == 0 {
             if count_turn != 0 {
-                score_diff.0[count_turn - 1] -= 1;
+                score.0[count_turn - 1] -= 1;
             }
-            score_diff.0[count_turn] += 1;
+            score.0[count_turn] += 1;
         } else if count_turn == 0 {
-            score_diff.0[count_other - 1] += 1;
+            score.0[count_other - 1] += 1;
         }
 
         let mut tail = 0;
-        for head in k..line.len() {
+        for head in self.k()..line.len() {
             let cell_head = line[head];
             let cell_tail = line[tail];
             // dbg!(cell_head);
             // dbg!(head);
 
             if let Some(color) = cell_head {
-                if *color == turn {
+                if *color == self.turn() {
                     count_turn += 1;
                 } else {
                     count_other += 1;
@@ -469,7 +486,7 @@ impl Game {
             }
 
             if let Some(color) = cell_tail {
-                if *color == turn {
+                if *color == self.turn() {
                     count_turn -= 1;
                 } else {
                     count_other -= 1;
@@ -478,25 +495,17 @@ impl Game {
 
             if count_other == 0 {
                 if count_turn != 0 {
-                    score_diff.0[count_turn - 1] -= 1;
+                    score.0[count_turn - 1] -= 1;
                 }
-                score_diff.0[count_turn] += 1;
+                score.0[count_turn] += 1;
             } else if count_turn == 0 {
-                score_diff.0[count_other - 1] += 1;
+                score.0[count_other - 1] += 1;
             }
 
             tail += 1;
         }
 
-        if turn == Color::Red {
-            for (a, b) in score.0.iter_mut().zip(score_diff.0) {
-                *a += b;
-            }
-        } else {
-            for (a, b) in score.0.iter_mut().zip(score_diff.0) {
-                *a -= b;
-            }
-        }
+        return score
     }
 
     pub fn serialize(&self) -> String {

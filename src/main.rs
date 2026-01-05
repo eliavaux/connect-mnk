@@ -1,4 +1,4 @@
-#![allow(unused)]
+#[allow(dead_code)]
 
 mod board;
 use board::*;
@@ -7,8 +7,6 @@ use std::io::stdin;
 use std::num::ParseIntError;
 
 fn main() {
-    let mut board = Game::new(7, 6, 4);
-
     let input = "
         _ _ _ _ _ _ _
         _ _ _ _ _ _ _
